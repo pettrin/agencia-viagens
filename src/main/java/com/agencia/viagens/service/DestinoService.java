@@ -3,50 +3,51 @@ package com.agencia.viagens.service;
 import com.agencia.viagens.dto.ReservaRequest;
 import com.agencia.viagens.exception.DestinoNaoEncontradoException;
 import com.agencia.viagens.model.Destino;
+import com.agencia.viagens.repository.DestinoRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class DestinoService {
 
-    private final List<Destino> destinos = new ArrayList<>();
-    private Long proximoId = 1L;
+    private final DestinoRepository destinoRepository;
+
+    public DestinoService(DestinoRepository destinoRepository) {
+        this.destinoRepository = destinoRepository;
+    }
 
     public Destino cadastrar(Destino destino) {
-        destino.setId(proximoId++);
-        destino.setMediaAvaliacao(0.0);
-        destino.setQuantidadeAvaliacoes(0);
+        destino.setId(null);
 
-        destinos.add(destino);
+        if (destino.getMediaAvaliacao() == null) {
+            destino.setMediaAvaliacao(0.0);
+        }
 
-        return destino;
+        if (destino.getQuantidadeAvaliacoes() == null) {
+            destino.setQuantidadeAvaliacoes(0);
+        }
+
+        return destinoRepository.save(destino);
     }
 
     public List<Destino> listarTodos() {
-        return destinos;
+        return destinoRepository.findAll();
     }
 
     public List<Destino> pesquisar(String termo) {
         if (termo == null || termo.isBlank()) {
-            return destinos;
+            return destinoRepository.findAll();
         }
 
-        String termoMinusculo = termo.toLowerCase();
-
-        return destinos.stream()
-                .filter(destino ->
-                        destino.getNome().toLowerCase().contains(termoMinusculo)
-                                || destino.getLocalizacao().toLowerCase().contains(termoMinusculo)
-                )
-                .toList();
+        return destinoRepository.findByNomeContainingIgnoreCaseOrLocalizacaoContainingIgnoreCase(
+                termo,
+                termo
+        );
     }
 
     public Destino buscarPorId(Long id) {
-        return destinos.stream()
-                .filter(destino -> destino.getId().equals(id))
-                .findFirst()
+        return destinoRepository.findById(id)
                 .orElseThrow(() -> new DestinoNaoEncontradoException("Destino não encontrado com o id: " + id));
     }
 
@@ -60,7 +61,7 @@ public class DestinoService {
         destinoExistente.setDisponibilidadeHotel(destinoAtualizado.getDisponibilidadeHotel());
         destinoExistente.setAtividades(destinoAtualizado.getAtividades());
 
-        return destinoExistente;
+        return destinoRepository.save(destinoExistente);
     }
 
     public Destino avaliar(Long id, Integer nota) {
@@ -73,18 +74,26 @@ public class DestinoService {
         Double mediaAtual = destino.getMediaAvaliacao();
         Integer quantidadeAtual = destino.getQuantidadeAvaliacoes();
 
+        if (mediaAtual == null) {
+            mediaAtual = 0.0;
+        }
+
+        if (quantidadeAtual == null) {
+            quantidadeAtual = 0;
+        }
+
         Double novaMedia = ((mediaAtual * quantidadeAtual) + nota) / (quantidadeAtual + 1);
 
         destino.setMediaAvaliacao(novaMedia);
         destino.setQuantidadeAvaliacoes(quantidadeAtual + 1);
 
-        return destino;
+        return destinoRepository.save(destino);
     }
 
     public String reservar(Long id, ReservaRequest reservaRequest) {
         Destino destino = buscarPorId(id);
 
-        return "Reserva realizada com sucesso para " 
+        return "Reserva realizada com sucesso para "
                 + reservaRequest.getNomeCliente()
                 + ". Destino: "
                 + destino.getNome()
@@ -95,6 +104,6 @@ public class DestinoService {
 
     public void excluir(Long id) {
         Destino destino = buscarPorId(id);
-        destinos.remove(destino);
+        destinoRepository.delete(destino);
     }
 }
